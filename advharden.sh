@@ -68,7 +68,50 @@ compare_users () {
         fi
     done
     
+    # Verify users in sudo group
+    sysAdminUsersArr=()
+    n=1
+    while read line
+    do
+        if [ ! -z "$line" ]
+        then
+            sysAdminUsersArr[$((${n}-1))]=$line
+        fi
+        n=$((n+1))
+    done < <(grep '^sudo:.*$' /etc/group | cut -d: -f4 | tr , '\n')
+    echo -e "\nFound ${#sysAdminUsersArr[@]} total sudo users"
+    
+    for system_admin_user in "${sysAdminUsersArr[@]}"
+    do
+        if [[ " ${allowedSudoUsers[*]} " != *"$system_admin_user"* ]]
+        then
+            read -p "Demote admin user ${system_admin_user} (y/n)? " answer
+            if [ $answer == 'y' ] || [ $answer == 'Y' ]
+            then
+                gpasswd -d ${system_admin_user} sudo
+            fi
+        fi
+    done
+
+    # Ensure standard users are promoted if necessary
+    for allowed_user in "${allowedSudoUsers[@]}"
+    do
+        if [[ " ${sysAdminUsersArr[*]} " != *"$allowed_user"* ]]
+        then
+            read -p "Promote admin user ${allowed_user} (y/n)? " answer
+            if [ $answer == 'y' ] || [ $answer == 'Y' ]
+            then
+                gpasswd -a ${allowed_user} sudo
+            fi
+        fi
+    done
 }
+
+question_user () {
+    read -p "Should all programs on this machine be upgraded (y/n)? " upgradeYN
+
+}
+
 
 # Path to all users file argument
 all_users_path="$1"
