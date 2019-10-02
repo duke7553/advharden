@@ -265,7 +265,10 @@ stig_complicance_measures () {
     echo "The following .shosts files have been removed"
     find / -name "*.shosts" -type f
     find / -name "*.shosts" -type f -delete
-	
+	# Remove any "shosts.equiv" files system-wide
+    echo "The following shosts.equiv files have been removed"
+    find / -name "shosts.equiv" -type f
+    find / -name "shosts.equiv" -type f -delete
 }
 
 question_user () {
