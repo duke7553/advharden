@@ -261,6 +261,10 @@ stig_complicance_measures () {
 			echo "Manual review of the file /etc/pam.d/login is needed. No changes were made"
 		fi
 	fi
+    # Remove "*.shosts" files system-wide
+    echo "The following .shosts files have been removed"
+    find / -name "*.shosts" -type f
+    find / -name "*.shosts" -type f -delete
 	
 }
 
