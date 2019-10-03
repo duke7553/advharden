@@ -4,16 +4,18 @@ commence_hardening () {
     countdown
 	tput reset
     compare_users
+    question_user
+    apt update
     enable_firewall
     disable_guest
-   # password_policy
-   # password_history
     account_lockout
     audit_policy
 	hacking_tools
 	enable_AppArmor
 	stig_complicance_measures
-	
+    unneeded_services
+    sanity_for_defaults
+	various_tweaks
 }
 
 countdown () {
@@ -120,6 +122,11 @@ compare_users () {
 
 enable_firewall () {
     echo "Enabling ufw with default rule set"
+    apt -y install ufw
+    systemctl start ufw
+    systemctl enable ufw
+    ufw default deny incoming
+    ufw default allow outgoing
     ufw enable
 }
 
@@ -132,48 +139,6 @@ disable_guest () {
     	echo "Disabling guest account"
     	sh -c 'printf "[SeatDefaults]\nallow-guest=false\n" >/etc/lightdm/lightdm.conf.d/50-no-guest.conf'
     fi
-
-}
-
-password_policy () {
-    echo "Configuring password length and complexity"
-
-    line_num="$(grep -nr "pam_unix.so" /etc/pam.d/common-password | cut -d : -f 1)"
-    line_text="$(grep "pam_unix.so" /etc/pam.d/common-password)"
-    text_to_append=" remember=5 minlen=8"
-    if [ $line_text != *"remember"* ] || [ $line_text != *"minlen"* ]
-    then
-        sed -i "${line_num}a ${text_to_append}" /etc/pam.d/common-password
-    else
-        echo "Error: Configuration file common-password requires manual review for pam_unix.so"
-    fi
-
-    line_num="$(grep -nr "pam_cracklib.so" /etc/pam.d/common-password | cut -d : -f 1)"
-    line_text="$(grep "pam_cracklib.so" /etc/pam.d/common-password)"
-    text_to_append=" ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1"
-    if [[ $line_text != *"credit"* ]]
-    then
-        sed -i "${line_num}a ${text_to_append}" /etc/pam.d/common-password
-    else
-        echo "Error: Configuration file common-password requires manual review for pam_cracklib.so"
-    fi
-}
-
-password_history () {
-    echo "Configuring password history variables"
-    line_num=$(grep -nr "PASS_MAX_DAYS" /etc/login.defs | cut -d : -f 1 | cut -d$'\n' -f 2)
-    line_text=$(grep "PASS_MAX_DAYS" /etc/login.defs)
-    text_to_add=$"PASS_MAX_DAYS\t90"
-    #sed -i "${line_num}i ${text_to_add}" /etc/login.defs
-    sed -i "${line_num}s/${line_text}/${text_to_add}/" /etc/login.defs
-
-    line_num="$(grep -nr "PASS_MIN_DAYS" /etc/login.defs | cut -d : -f 1)"
-    text_to_add="PASS_MIN_DAYS    10"
-    sed -i "${line_num}i ${text_to_add}" /etc/login.defs
-
-    line_num="$(grep -nr "PASS_WARN_AGE" /etc/login.defs | cut -d : -f 1)"
-    text_to_add="PASS_WARN_AGE    7"
-    sed -i "${line_num}i ${text_to_add}" /etc/login.defs
 
 }
 
@@ -218,13 +183,15 @@ hacking_tools () {
 }
 
 enable_AppArmor () {
-	apt -y install apparmor
-	systemctl enable apparmor
-	systemctl start apparmor
+	apt -y install libpam-apparmor
+	systemctl enable apparmor.service
+	systemctl start apparmor.service
 }
 
 stig_complicance_measures () {
+    echo "Initiating Ubuntu 16.04 STIG Semi-Compliance"
 	# Allow user initiation of session locks
+    echo "installing vlock"
 	apt install vlock
 	# Limit number of concurrent sessions
 	first_line="$(head -1 /etc/security/limits.conf)"
@@ -242,8 +209,10 @@ stig_complicance_measures () {
 		fi
 	fi
 	# Lock the root account to prevent direct logins
+    echo "locking root account"
 	passwd -l root
 	# Account identifiers
+    echo "account identifiers"
 	useradd -D -f 35
 	# Provide account access feedback
 	line_text="session required pam_lastlog.so showfailed"
@@ -269,10 +238,118 @@ stig_complicance_measures () {
     echo "The following shosts.equiv files have been removed"
     find / -name "shosts.equiv" -type f
     find / -name "shosts.equiv" -type f -delete
+    # Disable auto-mounting of USB Driver
+    echo "Disabling auto-mount of USB Driver"
+    echo "install usb-storage /bin/true" >> /etc/modprobe.d/DISASTIG.conf
+    # Disable auto-mounting of file systems
+    echo "Attempting to disable auto-mounting of file systems"
+    systemctl stop autofs
+    # Disable x86 [CTRL + ALT + Del] Key Sequence
+    echo "Disabling x86 [CTRL ALT DEL]"
+    systemctl mask ctrl-alt-del.target
+    systemctl daemon-reload
+    # Disable kernel core dumps
+    echo "Disabling kernel core dumps"
+    systemctl disable kdump.service
+    # Change group of /var/log to syslog
+    echo "Changing group of /var/log to syslog"
+    chgrp syslog /var/log 
+    # Change owner of /var/log to root and ensure correct permissions
+    echo "Changing owner of /var/log to root and ensuring correct permissions"
+    chown root /var/log
+    chmod 0770 /var/log
+    # Change group of file /var/log/syslog to adm
+    echo "Changing group of file /var/log/syslog to adm"
+    chgrp adm /var/log/syslog
+    # Change owner of /var/log/syslog to syslog and ensure correct permissions
+    echo "Changing owner of /var/log/syslog to syslog and ensuring correct permissions"
+    chown syslog /var/log/syslog
+    chmod 0640 /var/log/syslog
+    # Set permissions to prevent unnecessary selection of auditing events
+    echo "Preventing unnecessary selection of audit events"
+    chmod 0640 /etc/audit/auditd.conf
+    chmod 0640 /etc/audit/audit.rules
+    # Prevent overly-permissive file modes of SSH public/private host key files
+    echo "Preventing overly-permissive file modes of SSH public/private host key files"
+    chmod 0644 /etc/ssh/*key.pub
+    chmod 0600 /etc/ssh/ssh_host*key
+    systemctl restart sshd.service
+    # Enable TCP Syn-Cookies
+    echo "Enabling TCP Syn-Cookies"
+    sysctl -w net.ipv4.tcp_syncookies=1
+    # Reject untrusted connections in postfix
+    echo "Rejecting untrusted connections in postfix"
+    postconf -e 'smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject'
+    
+}
+
+unneeded_services () {
+    echo "Removing potentially-exploitable services based on user choices"
+    if [ $telnetYN == 'y' ] || [ $telnetYN == 'Y' ]
+    then
+        apt -y purge telnetd
+    fi
+
+    if [ $nisYN == 'y' ] || [ $nisYN == 'Y' ]
+    then
+        apt -y purge nis
+    fi
+
+    if [ $rshYN == 'y' ] || [ $rshYN == 'Y' ]
+    then
+        apt -y purge rsh-server
+    fi
+
+    if [ $vsftpdYN == 'y' ] || [ $vsftpdYN == 'Y' ]
+    then
+        apt -y purge vsftpd
+    fi
+
+    if [ $tftpYN == 'y' ] || [ $tftpYN == 'Y' ]
+    then
+        apt -y purge tftpd-hpa
+    fi
+}
+
+sanity_for_defaults () {
+    # Secure bash history file
+    echo "Securing bash history file"
+    chmod 640 .bash_history
+}
+
+various_tweaks () {
+    # Remove all aliases
+    echo "Removing all aliases"
+    unalias -a
+    # Install and update anti-virus 
+    echo "Installing and updating clamav anti-virus"
+    apt -y install clamav
+    freshclam
+    # Scan /home for infected items
+    if [ $scanYN == 'y' ] || [ $scanYN == 'Y' ]
+    then
+        echo "Scanning /home as per user's preferences"
+        clamscan -r /home
+    fi
+    echo "AdvHarden has now completed sucessfully"
+    echo -e "\n\nPlease do the following now:"
+    echo -e "  - Manually set PAM preferences"
+    echo -e "  - Disable root for SSH"
+    echo -e "  - Check hosts file"
+    echo -e "  - Check cron jobs"
+    echo -e "  - Check and secure open ports"
+    echo -e "  - Manage startup programs"
+    echo -e "  - Do an upgrade on all remaining packages"
+    echo -e "  - Check for illegal media files"
 }
 
 question_user () {
-    read -p "Should all programs on this machine be upgraded (y/n)? " upgradeYN
+    read -p "Should telnet be removed from this image (y/n)? " telnetYN
+    read -p "Should NIS, Network Information Services, be removed from this image (y/n)? " nisYN
+    read -p "Should rsh-server be removed from this image (y/n)? " rshYN
+    read -p "Should vsftpd be removed from this image (y/n)? " vsftpdYN
+    read -p "Should tftpd-hpa, Trivial File Transfer Protocol, be removed from this image (y/n)? " tftpYN
+    read -p "Should /home directory be scanned for infected items (y/n)? " scanYN
 
 }
 
