@@ -2,7 +2,7 @@
 
 commence_hardening () {
     countdown
-	tput reset
+    tput reset
     compare_users
     question_user
     apt update
@@ -10,12 +10,12 @@ commence_hardening () {
     disable_guest
     account_lockout
     audit_policy
-	hacking_tools
-	enable_AppArmor
-	stig_complicance_measures
+    hacking_tools
+    enable_AppArmor
+    stig_complicance_measures
     unneeded_services
     sanity_for_defaults
-	various_tweaks
+    various_tweaks
 }
 
 countdown () {
@@ -111,7 +111,7 @@ compare_users () {
     do
         if [[ " ${sysAdminUsersArr[*]} " != *"$allowed_user"* ]]
         then
-            read -p "Promote admin user ${allowed_user} (y/n)? " answer
+            read -p "Promote standard user ${allowed_user} to admin (y/n)? " answer
             if [ $answer == 'y' ] || [ $answer == 'Y' ]
             then
                 gpasswd -a ${allowed_user} sudo
@@ -163,22 +163,7 @@ audit_policy () {
 
 hacking_tools () {
     echo "Attempting to remove hacking tools from blacklist"
-    apt -y purge john
-    apt -y purge nmap
-    apt -y purge zenmap
-    apt -y purge wireshark
-    apt -y purge nikto
-    apt -y purge sqlmap
-	apt -y purge wapiti
-	apt -y purge aircrack-ng
-	apt -y purge reaver
-	apt -y purge ettercap-*
-	apt -y purge netcat
-	apt -y purge driftnet
-	apt -y purge kismet
-	apt -y purge yersinia
-	apt -y purge hydra
-	apt -y purge ophcrack*
+    apt -y purge john nmap zenmap wireshark nikto sqlmap wapiti aircrack-ng reaver ettercap-* netcat driftnet kismet yersinia hydra ophcrack*
 	
 }
 
@@ -232,12 +217,12 @@ stig_complicance_measures () {
 	fi
     # Remove "*.shosts" files system-wide
     echo "The following .shosts files have been removed"
-    find / -name "*.shosts" -type f
-    find / -name "*.shosts" -type f -delete
+    find / -iname "*.shosts" -type f
+    find / -iname "*.shosts" -type f -delete
 	# Remove any "shosts.equiv" files system-wide
     echo "The following shosts.equiv files have been removed"
-    find / -name "shosts.equiv" -type f
-    find / -name "shosts.equiv" -type f -delete
+    find / -iname "shosts.equiv" -type f
+    find / -iname "shosts.equiv" -type f -delete
     # Disable auto-mounting of USB Driver
     echo "Disabling auto-mount of USB Driver"
     echo "install usb-storage /bin/true" >> /etc/modprobe.d/DISASTIG.conf
@@ -284,37 +269,160 @@ stig_complicance_measures () {
 }
 
 unneeded_services () {
-    echo "Removing potentially-exploitable services based on user choices"
+    echo "Changing potentially-exploitable services based on user choices"
+    
     if [ $telnetYN == 'y' ] || [ $telnetYN == 'Y' ]
     then
         apt -y purge telnetd
+        ufw deny 23
+    elif [ $telnetYN == 'n' ] || [ $telnetYN == 'N' ]
+    then
+        ufw allow 23
+        apt -y install telnetd
     fi
 
     if [ $nisYN == 'y' ] || [ $nisYN == 'Y' ]
     then
         apt -y purge nis
+    elif [ $nisYN == 'n' ] || [ $nisYN == 'N' ]
+    then
+        apt -y install nis        
     fi
 
     if [ $rshYN == 'y' ] || [ $rshYN == 'Y' ]
     then
         apt -y purge rsh-server
+        ufw deny 514
+    elif [ $rshYN == 'n' ] || [ $rshYN == 'N' ]
+    then
+        ufw allow 514
+        apt -y install rsh-server        
     fi
 
     if [ $vsftpdYN == 'y' ] || [ $vsftpdYN == 'Y' ]
     then
         apt -y purge vsftpd
+        ufw deny ftp
+    elif [ $vsftpdYN == 'n' ] || [ $vsftpdYN == 'N' ]
+    then
+        ufw allow ftp
+        apt -y install vsftpd
     fi
 
     if [ $tftpYN == 'y' ] || [ $tftpYN == 'Y' ]
     then
         apt -y purge tftpd-hpa
+        ufw deny ftp
+    elif [ $tftpYN == 'n' ] || [ $tftpYN == 'N' ]
+    then
+        ufw allow ftp
+        apt -y install tftpd-hpa       
     fi
+
+    if [ $sshYN == 'y' ] || [ $sshYN == 'Y' ]
+    then
+        apt -y purge ssh
+        ufw deny ssh
+    elif [ $sshYN == 'n' ] || [ $sshYN == 'N' ]
+    then
+        ufw allow ssh
+        apt -y install ssh
+    fi
+
+    if [ $sambaYN == 'y' ] || [ $sambaYN == 'Y' ]
+    then
+        apt -y purge samba
+        ufw deny 137/udp
+        ufw deny 138/udp
+        ufw deny 139/tcp
+        ufw deny 445/tcp
+    elif [ $sambaYN == 'n' ] || [ $sambaYN == 'N' ]
+    then
+        apt -y install samba
+        ufw allow 137/udp
+        ufw allow 138/udp
+        ufw allow 139/tcp
+        ufw allow 445/tcp
+    fi
+
+    if [ $mailYN == 'y' ] || [ $mailYN == 'Y' ]
+    then    
+        ufw deny 109    # pop2
+        ufw deny 110    # pop3
+        ufw deny 143    # imap
+        ufw deny 25     # smtp
+        ufw deny 465    # ssmtp
+        ufw deny 585    # imap4-ssl
+        ufw deny 993    # imaps
+        ufw deny 995    # pop3s
+        ufw deny 220    # imap v3
+        ufw deny 587    # smtp (submission)
+    elif [ $mailYN == 'n' ] || [ $mailYN == 'N' ]
+    then
+        ufw allow 109    # pop2
+        ufw allow 110    # pop3
+        ufw allow 143    # imap
+        ufw allow 25     # smtp
+        ufw allow 465    # ssmtp
+        ufw allow 585    # imap4-ssl
+        ufw allow 993    # imaps
+        ufw allow 995    # pop3s
+        ufw allow 220    # imap v3
+        ufw allow 587    # smtp (submission)
+    fi
+
+    if [ $printYN == 'y' ] || [ $printYN == 'Y' ]
+    then
+        ufw deny cups
+        ufw deny ipp
+        ufw deny printer
+    elif [ $printYN == 'n' ] || [ $printYN == 'N' ]
+    then
+        ufw allow cups
+        ufw allow ipp
+        ufw allow printer
+    fi
+    
+    if [ $mysqlYN == 'y' ] || [ $mysqlYN == 'Y' ]
+    then
+        apt -y remove --purge mysql*
+        apt -y purge mysql*
+        ufw deny 3306
+    elif [ $mysqlYN == 'n' ] || [ $mysqlYN == 'N' ]
+    then
+        ufw allow 3306
+    fi
+
+    if [ $httpYN == 'y' ] || [ $httpYN == 'Y' ]
+    then
+        ufw deny http
+        ufw deny https
+        apt -y purge apache2
+    elif [ $httpYN == 'n' ] || [ $httpYN == 'N' ]
+    then
+        ufw allow http
+        ufw allow https
+        apt -y install apache2
+    fi
+
+    if [ $mediafilesYN == 'y' ] || [ $mediafilesYN == 'Y' ]
+    then
+        clear
+        echo -e "Finding potentially-prohibited media files... Retrived items must be reviewed from the created \"mediaFileLocations.txt\" file and deleted, if necessary."        
+        find / -iname "*.mp3" -o -iname "*.ogg" -o -iname "*.wav" -o -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.webm" -o -iname "*.flv" -o -iname "*.mov" -o -iname "*.png" -o -iname "*.jpeg" -o -iname "*.jpg" -type f > mediaFileLocations.txt
+
+        find /home -iname "*.mp3" -o -iname "*.ogg" -o -iname "*.wav" -o -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.webm" -o -iname "*.flv" -o -iname "*.mov" -o -iname "*.png" -o -iname "*.jpeg" -o -iname "*.jpg" -type f > homeMediaFileLocations.txt
+        echo "Media file query completed."
+    fi
+
+    apt -y autoremove
+    apt -y autoclean
 }
 
 sanity_for_defaults () {
     # Secure bash history file
     echo "Securing bash history file"
-    chmod 640 .bash_history
+    chmod 640 ~/.bash_history
 }
 
 various_tweaks () {
@@ -340,19 +448,25 @@ various_tweaks () {
     echo -e "  - Check and secure open ports"
     echo -e "  - Manage startup programs"
     echo -e "  - Do an upgrade on all remaining packages"
-    echo -e "  - Check for illegal media files"
+    echo -e "  - Review mediaFileLocations.txt"
 }
 
 question_user () {
+    read -p "Should SSH be removed from this image (y/n)? " sshYN
+    read -p "Should Samba be removed from this image (y/n)? " sambaYN
     read -p "Should telnet be removed from this image (y/n)? " telnetYN
     read -p "Should NIS, Network Information Services, be removed from this image (y/n)? " nisYN
     read -p "Should rsh-server be removed from this image (y/n)? " rshYN
     read -p "Should vsftpd be removed from this image (y/n)? " vsftpdYN
+    read -p "Should mail be removed from this image (y/n)? " mailYN
+    read -p "Should printing capabilities be removed from this image (y/n)? " printYN
+    read -p "Should MySQL be removed from this image (y/n)? " mysqlYN
+    read -p "Should web server capabilities be removed from this image (y/n)? " httpYN
     read -p "Should tftpd-hpa, Trivial File Transfer Protocol, be removed from this image (y/n)? " tftpYN
+    read -p "Are media files banned (y/n)? " mediafilesYN
     read -p "Should /home directory be scanned for infected items (y/n)? " scanYN
 
 }
-
 
 # Path to all users file argument
 all_users_path="$1"
@@ -367,9 +481,9 @@ then
     echo ""
     echo -e "[ALLUSERSPATH]|The path to a user-defined file of all permitted users\n[SUDOUSERSPATH]|The path to a user-defined file of all permitted SUDO users" | column -tc "Option,Meaning" -s '|'
 else
-    echo -e "Welcome to AdvHarden\nCreated by Luke Blevins\nVersion 2019.0.0.2\n"
-    echo "Disclaimer: It is advisable to complete forensics questions first"
-    read -p "Have the forensics questions been completed (y/n)? " answer
+    echo -e "Welcome to AdvHarden\nCreated by Luke Blevins\nVersion 2019.0.1.3\n"
+    echo "Disclaimer: It is advisable to complete any necessary forensics work first"
+    read -p "Has all forensics work been completed (y/n)? " answer
     if [ $answer == 'y' ] || [ $answer == 'Y' ]
     then
         commence_hardening
