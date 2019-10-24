@@ -20,7 +20,7 @@ commence_hardening () {
 
 countdown () {
     echo "Program will proceed with Ubuntu hardening in 5000 ms"
-    for((i=5;i>0;i--));
+    for((i=3;i>0;i--));
     do
         echo "Starting in ${i}000 ms"
         sleep 1s
@@ -137,6 +137,7 @@ disable_guest () {
 		echo "Guest account already disabled"
     else
     	echo "Disabling guest account"
+        mkdir /etc/lightdm/lightdm.conf.d/
     	sh -c 'printf "[SeatDefaults]\nallow-guest=false\n" >/etc/lightdm/lightdm.conf.d/50-no-guest.conf'
     fi
 
@@ -163,7 +164,22 @@ audit_policy () {
 
 hacking_tools () {
     echo "Attempting to remove hacking tools from blacklist"
-    apt -y purge john nmap zenmap wireshark nikto sqlmap wapiti aircrack-ng reaver ettercap-* netcat driftnet kismet yersinia hydra ophcrack*
+    apt -y purge john
+    apt -y purge nmap
+    apt -y purge zenmap
+    apt -y purge wireshark
+    apt -y purge nikto
+    apt -y purge sqlmap
+    apt -y purge wapiti
+    apt -y purge aircrack-ng
+    apt -y purge reaver
+    apt -y purge ettercap-*
+    apt -y purge netcat
+    apt -y purge driftnet
+    apt -y purge kismet
+    apt -y purge yersinia
+    apt -y purge hydra
+    apt -y purge ophcrack*
 	
 }
 
@@ -312,11 +328,12 @@ unneeded_services () {
     if [ $tftpYN == 'y' ] || [ $tftpYN == 'Y' ]
     then
         apt -y purge tftpd-hpa
+        apt -y purge pure-ftpd
         ufw deny ftp
     elif [ $tftpYN == 'n' ] || [ $tftpYN == 'N' ]
     then
         ufw allow ftp
-        apt -y install tftpd-hpa       
+        apt -y install pure-ftpd
     fi
 
     if [ $sshYN == 'y' ] || [ $sshYN == 'Y' ]
@@ -442,10 +459,10 @@ various_tweaks () {
     echo "AdvHarden has now completed sucessfully"
     echo -e "\n\nPlease do the following now:"
     echo -e "  - Manually set PAM preferences"
-    echo -e "  - Disable root for SSH"
+    echo -e "  - Secure needed programs"
     echo -e "  - Check hosts file"
     echo -e "  - Check cron jobs"
-    echo -e "  - Check and secure open ports"
+    echo -e "  - Check and secure open ports with netstat ‐tulpn"
     echo -e "  - Manage startup programs"
     echo -e "  - Do an upgrade on all remaining packages"
     echo -e "  - Review mediaFileLocations.txt"
@@ -481,7 +498,7 @@ then
     echo ""
     echo -e "[ALLUSERSPATH]|The path to a user-defined file of all permitted users\n[SUDOUSERSPATH]|The path to a user-defined file of all permitted SUDO users" | column -tc "Option,Meaning" -s '|'
 else
-    echo -e "Welcome to AdvHarden\nCreated by Luke Blevins\nVersion 2019.0.1.3\n"
+    echo -e "Welcome to AdvHarden\nCreated by Luke Blevins\nVersion 2019.0.1.4\n"
     echo "Disclaimer: It is advisable to complete any necessary forensics work first"
     read -p "Has all forensics work been completed (y/n)? " answer
     if [ $answer == 'y' ] || [ $answer == 'Y' ]
