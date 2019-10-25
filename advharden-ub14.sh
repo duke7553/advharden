@@ -19,7 +19,7 @@ commence_hardening () {
 }
 
 countdown () {
-    echo "Program will proceed with Ubuntu hardening in 5000 ms"
+    echo "Program will proceed with Ubuntu hardening in 3000 ms"
     for((i=3;i>0;i--));
     do
         echo "Starting in ${i}000 ms"
@@ -122,9 +122,8 @@ compare_users () {
 
 enable_firewall () {
     echo "Enabling ufw with default rule set"
-    apt -y install ufw
-    systemctl start ufw
-    systemctl enable ufw
+    apt -y install ufw gufw
+    service ufw start
     ufw default deny incoming
     ufw default allow outgoing
     ufw enable
@@ -185,12 +184,11 @@ hacking_tools () {
 
 enable_AppArmor () {
 	apt -y install libpam-apparmor
-	systemctl enable apparmor.service
-	systemctl start apparmor.service
+	service apparmor start
 }
 
 stig_complicance_measures () {
-    echo "Initiating Ubuntu 16.04 STIG Semi-Compliance"
+    echo "Initiating Ubuntu 16.04 STIG Semi-Compliance for Ubuntu 14.04"
 	# Allow user initiation of session locks
     echo "installing vlock"
 	apt install vlock
@@ -244,14 +242,10 @@ stig_complicance_measures () {
     echo "install usb-storage /bin/true" >> /etc/modprobe.d/DISASTIG.conf
     # Disable auto-mounting of file systems
     echo "Attempting to disable auto-mounting of file systems"
-    systemctl stop autofs
+    service autofs stop
     # Disable x86 [CTRL + ALT + Del] Key Sequence
     echo "Disabling x86 [CTRL ALT DEL]"
-    systemctl mask ctrl-alt-del.target
-    systemctl daemon-reload
-    # Disable kernel core dumps
-    echo "Disabling kernel core dumps"
-    systemctl disable kdump.service
+    mv /etc/init/control-alt-delete.conf /etc/init/control-alt-delete.confDISABLED
     # Change group of /var/log to syslog
     echo "Changing group of /var/log to syslog"
     chgrp syslog /var/log 
@@ -274,7 +268,7 @@ stig_complicance_measures () {
     echo "Preventing overly-permissive file modes of SSH public/private host key files"
     chmod 0644 /etc/ssh/*key.pub
     chmod 0600 /etc/ssh/ssh_host*key
-    systemctl restart sshd.service
+    service sshd restart
     # Enable TCP Syn-Cookies
     echo "Enabling TCP Syn-Cookies"
     sysctl -w net.ipv4.tcp_syncookies=1
@@ -432,8 +426,8 @@ unneeded_services () {
         echo "Media file query completed."
     fi
 
-    apt -y autoremove
-    apt -y autoclean
+    apt-get -y autoremove
+    apt-get -y autoclean
 }
 
 sanity_for_defaults () {
@@ -498,7 +492,7 @@ then
     echo ""
     echo -e "[ALLUSERSPATH]|The path to a user-defined file of all permitted users\n[SUDOUSERSPATH]|The path to a user-defined file of all permitted SUDO users" | column -tc "Option,Meaning" -s '|'
 else
-    echo -e "Welcome to AdvHarden\nCreated by Luke Blevins\nVersion 2019.0.1.4\n"
+    echo -e "Welcome to AdvHarden-ub14\nCreated by Luke Blevins\nVersion 2019.0.1.4\n"
     echo "Disclaimer: It is advisable to complete any necessary forensics work first"
     read -p "Has all forensics work been completed (y/n)? " answer
     if [ $answer == 'y' ] || [ $answer == 'Y' ]
